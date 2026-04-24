@@ -226,18 +226,28 @@ const FLUFF_PATTERNS = [
   { re: /\b(certainly|absolutely|of course)[,!]\s*/gi, label: "affirmative-fluff", kind: "phrase" },
 ];
 
+// Emit one issue per fluff match (capped per label) so score scales with
+// fluff density: 10 "please" occurrences deduct ~30 points, not 3.
+const FLUFF_ISSUES_PER_LABEL_CAP = 10;
 function ruleTrailingFluff(text) {
   const issues = [];
   for (const { re, label } of FLUFF_PATTERNS) {
     const matches = [...text.matchAll(re)];
     if (matches.length === 0) continue;
-    issues.push({
-      rule: "trailing-fluff",
-      severity: "info",
-      message: `${matches.length}x "${label}" fluff found`,
-      samples: matches.slice(0, 3).map((m) => m[0]),
-      suggestion: "Delete. AIs do not need politeness tokens.",
-    });
+    const emitted = Math.min(matches.length, FLUFF_ISSUES_PER_LABEL_CAP);
+    for (let k = 0; k < emitted; k++) {
+      const m = matches[k];
+      issues.push({
+        rule: "trailing-fluff",
+        severity: "info",
+        message:
+          matches.length > emitted && k === emitted - 1
+            ? `"${label}" fluff (match ${k + 1} of ${matches.length}, cap reached)`
+            : `"${label}" fluff (match ${k + 1} of ${matches.length})`,
+        samples: [m[0]],
+        suggestion: "Delete. AIs do not need politeness tokens.",
+      });
+    }
   }
   return issues;
 }
@@ -284,20 +294,72 @@ function trim(text) {
   return t.trim();
 }
 
-// Count meaningful (non-stopword, alphabetic) words in a sentence fragment.
-const STOPWORDS = new Set([
-  "a", "an", "the", "and", "or", "but", "if", "of", "to", "in", "on", "for",
-  "is", "are", "was", "were", "be", "been", "being", "it", "this", "that",
-  "these", "those", "i", "you", "we", "they", "he", "she", "at", "by", "as",
-  "with", "from", "so", "too", "very", "just", "also", "not", "no",
+// Curated imperative / common-action verb list. A sentence containing any of
+// these (in any inflected form we can cheaply match) is substantive enough to
+// keep, regardless of its word count. This replaces a prior "meaningful word
+// count >= 3" heuristic that over-eagerly dropped legitimate 2-word imperatives
+// like "refactor the code" (where "the" is a stopword).
+const KEEP_VERBS = new Set([
+  "refactor", "handle", "fix", "update", "create", "add", "remove", "check",
+  "run", "use", "read", "write", "return", "print", "answer", "explain",
+  "implement", "respond", "reply", "ask", "send", "log", "save", "delete",
+  "rename", "move", "copy", "list", "show", "verify", "validate", "be", "do",
+  "make", "keep", "avoid", "skip", "build", "test", "set", "get", "call",
+  "parse", "format", "review", "analyze", "generate", "describe", "summarize",
+  "find", "search", "fetch", "load", "store", "push", "pull", "commit",
+  "merge", "split", "combine", "filter", "sort", "map", "reduce", "compute",
+  "calculate", "convert", "transform", "translate", "compare", "match",
+  "include", "exclude", "require", "allow", "deny", "accept", "reject",
+  "confirm", "cancel", "stop", "start", "pause", "resume", "enable", "disable",
+  "open", "close", "insert", "replace", "restore", "upgrade", "downgrade",
+  "install", "uninstall", "configure", "customize", "extend", "shorten",
+  "trim", "clean", "clear", "reset", "initialize", "finalize", "consider",
+  "think", "decide", "choose", "pick", "select", "prefer", "know", "tell",
+  "help", "assist", "suggest", "recommend", "warn", "note", "mention",
+  "assume", "ignore", "follow", "obey", "apply", "adopt", "enforce", "ensure",
 ]);
-function meaningfulWordCount(s) {
+
+// Fast inflection-aware keep check:
+// - exact match in KEEP_VERBS, or
+// - strip common suffixes (s, ed, ing, es, ied) and check base form.
+function containsKeepVerb(s) {
   const words = s
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .split(/\s+/)
     .filter(Boolean);
-  return words.filter((w) => !STOPWORDS.has(w) && /[a-z]/i.test(w)).length;
+  for (const w of words) {
+    if (KEEP_VERBS.has(w)) return true;
+    // Try common inflection stripping.
+    if (w.length > 3) {
+      if (w.endsWith("ing")) {
+        const base = w.slice(0, -3);
+        if (KEEP_VERBS.has(base)) return true;
+        // "running" → drop doubled consonant
+        if (base.length > 1 && base[base.length - 1] === base[base.length - 2]) {
+          if (KEEP_VERBS.has(base.slice(0, -1))) return true;
+        }
+        // "making" → "make"
+        if (KEEP_VERBS.has(base + "e")) return true;
+      }
+      if (w.endsWith("ed")) {
+        const base = w.slice(0, -2);
+        if (KEEP_VERBS.has(base)) return true;
+        if (KEEP_VERBS.has(base + "e")) return true;
+        // "ied" → "y"
+        if (w.endsWith("ied") && w.length > 3 && KEEP_VERBS.has(w.slice(0, -3) + "y"))
+          return true;
+      }
+      if (w.endsWith("es")) {
+        if (KEEP_VERBS.has(w.slice(0, -2))) return true;
+        if (KEEP_VERBS.has(w.slice(0, -1))) return true; // "parses" → "parse"
+      }
+      if (w.endsWith("s") && !w.endsWith("ss")) {
+        if (KEEP_VERBS.has(w.slice(0, -1))) return true;
+      }
+    }
+  }
+  return false;
 }
 
 // Split prose into sentence-like chunks, preserving the delimiter characters
@@ -335,21 +397,56 @@ const SENTENCE_DROP_STARTERS = [
   /^\s*feel free to\b/i,
 ];
 
+// Mask double-quoted spans ("…") and inline backtick spans (`…`) in a sentence
+// with same-length placeholders so fluff regex inside them doesn't match.
+// Returns [maskedText, restoreFn] — restoreFn substitutes original spans back
+// into the (possibly-mutated) output.
+function maskInlineQuotesAndBackticks(s) {
+  const spans = [];
+  // Match inline backtick spans first (they can contain quotes), then double
+  // quotes. Single quotes are deliberately NOT masked because they double as
+  // apostrophes in English contractions (e.g. "don't", "I'm").
+  const re = /`[^`\n]*`|"[^"\n]*"/g;
+  let masked = "";
+  let lastIdx = 0;
+  for (const m of s.matchAll(re)) {
+    masked += s.slice(lastIdx, m.index);
+    const placeholder = "" + String(spans.length).padStart(4, "0") + "";
+    spans.push({ placeholder, original: m[0] });
+    masked += placeholder;
+    lastIdx = m.index + m[0].length;
+  }
+  masked += s.slice(lastIdx);
+  const restore = (out) => {
+    let r = out;
+    for (const { placeholder, original } of spans) {
+      r = r.split(placeholder).join(original);
+    }
+    return r;
+  };
+  return [masked, restore];
+}
+
 function trimProse(prose) {
   const sentences = splitSentencesPreservingDelims(prose);
   const kept = [];
 
   for (const sent of sentences) {
-    // Whole-sentence drop: if sentence starts with a pure-fluff phrase,
-    // drop it entirely (keep only trailing newlines for paragraph spacing).
-    const startsWithFluff = SENTENCE_DROP_STARTERS.some((re) => re.test(sent));
+    // Mask quotes / inline backticks before ANY fluff handling, including the
+    // whole-sentence-drop starter check. This keeps things like
+    //   Consider: "Thank you for your help" is a fluff string.
+    // from being dropped or gutted.
+    const [maskedSent, restore] = maskInlineQuotesAndBackticks(sent);
+
+    // Whole-sentence drop: only if the *masked* sentence starts with fluff.
+    const startsWithFluff = SENTENCE_DROP_STARTERS.some((re) => re.test(maskedSent));
     if (startsWithFluff) {
       const trailingNewlines = sent.match(/\n+$/)?.[0] ?? "";
       kept.push(trailingNewlines);
       continue;
     }
 
-    let s = sent;
+    let s = maskedSent;
     let anyFluff = false;
 
     for (const { re } of FLUFF_PATTERNS) {
@@ -362,16 +459,20 @@ function trimProse(prose) {
     }
 
     if (!anyFluff) {
+      // Nothing changed; restore placeholders and keep original.
       kept.push(sent);
       continue;
     }
 
-    // After fluff removal: count what's left.
+    // After fluff removal: decide whether to drop the whole sentence.
+    // Keep the sentence if it contains a known action verb (imperative or
+    // otherwise). Otherwise treat the residue as fluff fragment and drop.
     const cleaned = s.replace(/[ \t]+/g, " ").trim();
     const cleanedWithoutPunct = cleaned.replace(/^[^\p{L}\p{N}]+/u, "");
-    const words = meaningfulWordCount(cleanedWithoutPunct);
+    const restoredForCheck = restore(cleanedWithoutPunct);
+    const hasVerb = containsKeepVerb(restoredForCheck);
 
-    if (words < 3) {
+    if (!hasVerb) {
       // Drop the whole sentence — keeps newlines from the original if any.
       const trailingNewlines = sent.match(/\n+$/)?.[0] ?? "";
       kept.push(trailingNewlines);
@@ -380,7 +481,6 @@ function trimProse(prose) {
 
     // Re-capitalize first alphabetic letter of what's left.
     let rebuilt = s.replace(/[ \t]+/g, " ");
-    // Preserve leading/trailing whitespace structure as best as possible.
     rebuilt = rebuilt.replace(/^[ \t]+/, "");
     rebuilt = rebuilt.replace(
       /^([^\p{L}]*)(\p{Ll})/u,
@@ -391,6 +491,8 @@ function trimProse(prose) {
     if (trailingNewlines && !rebuilt.endsWith(trailingNewlines)) {
       rebuilt = rebuilt.replace(/\n+$/, "") + trailingNewlines;
     }
+    // Restore quoted/backticked spans in the surviving sentence.
+    rebuilt = restore(rebuilt);
     kept.push(rebuilt);
   }
 
@@ -431,7 +533,16 @@ export function lint(text) {
     ...ruleContradiction(masked),
     ...ruleTrailingFluff(masked),
   ];
-  const trimmed = trim(input);
+  let trimmed = trim(input);
+  // Safety fallback: if the input had content but the trimmer produced an
+  // empty string, return the original input instead. A "safe drop-in" trimmer
+  // must never turn a non-empty prompt into a blank — the downstream LLM
+  // should always receive the user's intent, even if uncompressed.
+  let trimmerFallback = false;
+  if (input.trim().length > 0 && trimmed.trim().length === 0) {
+    trimmed = input;
+    trimmerFallback = true;
+  }
   const tokensBefore = estimateTokens(input);
   const tokensAfter = estimateTokens(trimmed);
   const saved = Math.max(0, tokensBefore - tokensAfter);
@@ -446,6 +557,9 @@ export function lint(text) {
     saved,
     savedPercent,
   };
+  if (trimmerFallback) {
+    result.trimmerFallback = true;
+  }
   if (input.trim().length === 0) {
     result.note = "empty input";
   }
