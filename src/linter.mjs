@@ -11,12 +11,33 @@ export function estimateTokens(text) {
 }
 
 // ---------- Helpers ----------
+// Mask inline quote / backtick spans in `text` with equal-length runs of a
+// single non-terminator character (underscore), so that subsequent splits on
+// sentence terminators (. ! ? etc.) do NOT cut inside a quoted/backticked
+// span. Indexes and total length are preserved. Single quotes are deliberately
+// left alone because they double as apostrophes in English contractions.
+function maskQuotedSpansForSplit(text) {
+  return text.replace(/`[^`\n]*`|"[^"\n]*"/g, (m) => m.replace(/[^\n]/g, "_"));
+}
+
 function splitSentences(text) {
   // Split on line breaks, CJK/Latin sentence enders. Keep non-trivial pieces.
-  return text
-    .split(/[\n。.!?！？]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 12);
+  // Quote-aware: mask inline quoted/backticked spans first so a period inside
+  // a "..." or `...` doesn't split the surrounding sentence. We split on the
+  // masked copy, then map the slices back onto the original text by offset.
+  const masked = maskQuotedSpansForSplit(text);
+  const splitter = /[\n。.!?！？]+/g;
+  const out = [];
+  let lastIdx = 0;
+  let m;
+  while ((m = splitter.exec(masked)) !== null) {
+    const slice = text.slice(lastIdx, m.index).trim();
+    if (slice.length > 12) out.push(slice);
+    lastIdx = m.index + m[0].length;
+  }
+  const tail = text.slice(lastIdx).trim();
+  if (tail.length > 12) out.push(tail);
+  return out;
 }
 
 function tokenizeWords(s) {
@@ -217,7 +238,11 @@ function ruleContradiction(text) {
 // "clause" removes to the end of the clause/sentence.
 const FLUFF_PATTERNS = [
   { re: /\b(thank you|thanks)\b[.!]?/gi, label: "thanks", kind: "phrase" },
-  { re: /\b(please|kindly)\s/gi, label: "please", kind: "phrase" },
+  // Match "please"/"kindly" followed by whitespace OR sentence-ending
+  // punctuation OR end-of-string. Previously required a trailing space, which
+  // let "Please." slip by. The lookahead keeps the match single-token so we
+  // don't swallow surrounding context — just the politeness word itself.
+  { re: /\b(please|kindly)(?=[\s.!?,;:]|$)/gi, label: "please", kind: "phrase" },
   { re: /\bI hope (this|that) helps\b\.?/gi, label: "hope-helps", kind: "phrase" },
   { re: /\blet me know if\b[^\n.]*[.!]?/gi, label: "let-me-know", kind: "clause" },
   { re: /\bfeel free to\b[^\n.]*[.!]?/gi, label: "feel-free", kind: "clause" },
@@ -365,20 +390,29 @@ function containsKeepVerb(s) {
 // Split prose into sentence-like chunks, preserving the delimiter characters
 // (so "Hello! World." → ["Hello!", " World."]). Keeps leading/trailing
 // whitespace attached to segments so we can rejoin without losing structure.
+// Quote-aware: a period / ! / ? inside a "..." double-quoted span or a
+// `...` backticked span does NOT end a sentence. We mask those spans to
+// equal-length underscore runs before running the splitter regex, then map
+// each chunk's offsets back onto the unmasked original so the returned pieces
+// contain the verbatim original characters.
 function splitSentencesPreservingDelims(text) {
+  const masked = maskQuotedSpansForSplit(text);
   // Match chunks of (non-terminators)(terminators)? plus any trailing whitespace.
   const re = /[^.!?\n]*(?:[.!?]+|\n|$)[ \t]*/g;
   const out = [];
   let m;
-  let lastIndex = 0;
-  while ((m = re.exec(text)) !== null) {
+  let lastStart = 0;
+  while ((m = re.exec(masked)) !== null) {
     if (m[0].length === 0) {
-      if (re.lastIndex === lastIndex) re.lastIndex++;
+      if (re.lastIndex === lastStart) re.lastIndex++;
       continue;
     }
-    out.push(m[0]);
-    lastIndex = re.lastIndex;
-    if (re.lastIndex >= text.length) break;
+    const start = m.index;
+    const end = re.lastIndex;
+    // Pull from the ORIGINAL (unmasked) text so quoted contents survive intact.
+    out.push(text.slice(start, end));
+    lastStart = end;
+    if (re.lastIndex >= masked.length) break;
   }
   return out;
 }
