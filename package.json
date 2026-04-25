@@ -1,11 +1,12 @@
 {
   "name": "promptlint-mcp",
-  "version": "0.1.2",
+  "version": "0.1.3",
+  "mcpName": "io.github.sean-sunagaku/promptlint-mcp",
   "description": "Static linter for AI prompts. Detects contradictions, redundancy, ambiguity, and fluff. Ships as a CLI and an MCP server.",
   "type": "module",
   "bin": {
-    "promptlint": "./src/cli.mjs",
-    "promptlint-mcp": "./src/mcp.mjs"
+    "promptlint": "src/cli.mjs",
+    "promptlint-mcp": "src/mcp.mjs"
   },
   "exports": {
     ".": "./src/linter.mjs"
@@ -15,7 +16,8 @@
     "examples",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "server.json"
   ],
   "engines": {
     "node": ">=18"
@@ -44,7 +46,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/sean-sunagaku/promptlint-mcp"
+    "url": "git+https://github.com/sean-sunagaku/promptlint-mcp.git"
   },
   "bugs": {
     "url": "https://github.com/sean-sunagaku/promptlint-mcp/issues"

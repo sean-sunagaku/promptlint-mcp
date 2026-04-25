@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sean-sunagaku/promptlint-mcp",
+  "title": "Promptlint MCP",
+  "description": "Static linter for AI prompts: contradictions, redundancy, ambiguity, and fluff.",
+  "repository": {
+    "url": "https://github.com/sean-sunagaku/promptlint-mcp",
+    "source": "github"
+  },
+  "version": "0.1.3",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "promptlint-mcp",
+      "version": "0.1.3",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
