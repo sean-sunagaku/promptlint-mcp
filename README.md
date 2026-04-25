@@ -1,10 +1,11 @@
 # promptlint-mcp
 
+[![npm](https://img.shields.io/npm/v/promptlint-mcp.svg?label=npm)](https://www.npmjs.com/package/promptlint-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/promptlint-mcp.svg?label=downloads)](https://www.npmjs.com/package/promptlint-mcp)
+[![GitHub stars](https://img.shields.io/github/stars/sean-sunagaku/promptlint-mcp.svg?style=flat&label=stars)](https://github.com/sean-sunagaku/promptlint-mcp/stargazers)
 ![MIT License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Node 18+](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)
 ![MCP compatible](https://img.shields.io/badge/MCP-compatible-blue.svg)
-![v0.1.2](https://img.shields.io/badge/release-v0.1.2-blue.svg)
-![npm](https://img.shields.io/npm/v/promptlint-mcp.svg?label=npm)
 
 Lint AI prompts like code. Save tokens. Catch contradictions.
 
@@ -372,12 +373,12 @@ Existing labels: `length`, `tone`, `frequency`, `prohibition`, `commenting`,
 
 ## How this was built
 
-This v0.1.0 was produced by an AI auto-improvement loop:
-**Customer AI** uses the tool and writes feedback → **Developer AI** reads the
-feedback and patches the code → repeat. Each round's commit (`round-001`,
-`round-002`, `round-003`) is the developer-AI's response to that round's
-customer-AI feedback. The loop framework lives at
-[ai-auto-improve-app](https://github.com/sean-sunagaku/ai-auto-improve-app).
+This package was produced end-to-end by two AI agent teams:
+
+- **[ai-auto-improve-app](https://github.com/sean-sunagaku/ai-auto-improve-app)** — built and polished the product. Customer AI uses the tool and writes feedback → Developer AI patches the code → repeat. Each round's commit (`round-001` … `round-003`) is the developer-AI's response to that round's customer-AI feedback.
+- **[ai-launch-team](https://github.com/sean-sunagaku/ai-launch-team)** — published and distributed it. 5 sub-agents handled npm publish, GitHub Release, awesome-mcp PRs, Discussions threads, social copy drafts, and SVG/PNG asset generation.
+
+Combined, this took the product from "empty repo" to "v0.1.2 on npm + 2 awesome-mcp PRs + 2 Discussions seed threads + 4 Issues + full social drafts" with the only manual step being the platform-mandated SMS / OTP authentications (X account creation, npm 2FA setup) — the rest was AI.
 
 ## License
 
