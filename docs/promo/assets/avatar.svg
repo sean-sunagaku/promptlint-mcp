@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect width="256" height="256" rx="48" ry="48" fill="#0d1117"/>
+  <text x="32" y="172"
+        font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+        font-size="148" font-weight="800"
+        fill="#3fb950" letter-spacing="-6">&gt;_</text>
+  <g transform="translate(176 36)">
+    <circle r="34" cx="34" cy="34" fill="#3fb950"/>
+    <path d="M16 36 L28 50 L52 22"
+          stroke="#0d1117" stroke-width="9"
+          stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+</svg>

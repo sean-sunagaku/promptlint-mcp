@@ -12,13 +12,17 @@
 - `Promptlint MCP`
 - `Promptlint · AI prompt linter`
 
-### Handle (`@`) 候補
-取得可能性順に並べた。先に `x.com/<handle>` を開いて空き確認 → 上から取る。
-1. `@promptlint`
-2. `@promptlint_mcp`
-3. `@promptlintdev`
+### Handle (`@`) — 推奨確定順
+**第一候補: `@promptlint_mcp`** （プロダクト名と完全一致、`mcp` で技術者向けの意図が伝わる、絵文字含めて 14 chars でリプライ時に圧迫しない）
+
+取れない場合の優先順位:
+1. `@promptlint_mcp` ← 推奨
+2. `@promptlint` （短くてベスト、ただし汎用語で取得済みの可能性高）
+3. `@promptlintdev` （個人開発者の自己主張寄り）
 4. `@promptlintapp`
-5. `@promptlinthq`
+5. `@promptlinthq` （複数人運営感）
+
+> X は handle 検索 API を未認証で叩けない。空き確認は手動でブラウザから `x.com/promptlint_mcp` 等を開いて 404 を確認する。AI 側からは claude-in-chrome 経由で同じことをやれる（`mcp__claude-in-chrome__navigate` → ページが「This account doesn't exist」を返せば空き）。
 
 ### Bio (160 chars)
 ```
@@ -44,22 +48,22 @@ Static linter for AI prompts. Catches contradictions, strips fluff, saves tokens
 
 ## ビジュアル
 
-### Profile picture
-- 256×256 / 400×400 PNG。
-- 案 A: `</>` シンボル + チェックマーク（lint = check の含意）
-- 案 B: プロンプト引用符 `"…"` + 虫眼鏡
-- 案 C: スコアバッジ風 `100/100` の円形メダル
-- 第一候補: **案 A** — 最も「lint」のメタファーが直感的
+### Generated assets (確定版、`./assets/` に同梱)
+| 用途 | ファイル | サイズ |
+| ---- | -------- | ------ |
+| Profile picture | [`assets/avatar-400.png`](./assets/avatar-400.png) | 400×400 |
+|                 | [`assets/avatar-256.png`](./assets/avatar-256.png) | 256×256 (フォールバック) |
+| X header | [`assets/x-header.png`](./assets/x-header.png) | 1500×500 |
+| OG image (HN/Reddit/PH) | [`assets/og.png`](./assets/og.png) | 1200×630 |
+| SVG ソース | `assets/avatar.svg`, `assets/x-header.svg`, `assets/og.svg` | — |
 
-ジェネレート方法（簡易）: SVG → PNG。`scripts/avatar.sh` 等で自動化可能。
+ロゴモチーフ: ターミナルプロンプト記号 `>_` を主体に、緑のチェックマークバッジで「lint = pass / fail を一目で示す」を表現。配色は GitHub のダーク UI（#0d1117 / #3fb950）に寄せて開発者文化に馴染ませる。
 
-### Header (1500×500)
-- 黒背景 + ターミナル風の CLI 出力スクショ（`promptlint examples/bad-prompt.md` の colored 出力）
-- 右下に小さく `github.com/sean-sunagaku/promptlint-mcp`
+修正したい場合は `assets/*.svg` を編集 → `rsvg-convert -w <px> -h <px> -o <name>.png <name>.svg` で再生成。
 
 ### Pinned tweet
 [x-single.md](./x-single.md) の本文をそのまま使用。
-画像添付: 上記 header と同じ CLI 出力 PNG。
+画像添付: `assets/og.png`（CLI 出力をデザインしたもの）。
 
 ---
 
