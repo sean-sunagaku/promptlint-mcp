@@ -1,6 +1,6 @@
 {
   "name": "promptlint-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Static linter for AI prompts. Detects contradictions, redundancy, ambiguity, and fluff. Ships as a CLI and an MCP server.",
   "type": "module",
   "bin": {

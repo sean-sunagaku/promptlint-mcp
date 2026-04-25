@@ -5,6 +5,21 @@ All notable changes to `promptlint-mcp` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] — 2026-04-25
+
+### Added
+
+- **Published to npm** as `promptlint-mcp`. Two binaries land on `$PATH`:
+  `promptlint` (CLI) and `promptlint-mcp` (MCP server). MCP registration
+  becomes a one-liner: `claude mcp add promptlint -- npx -y promptlint-mcp`.
+- **README**: rewritten Install + MCP-usage sections to npm/npx-first;
+  clone-and-run kept under "From source". Added an `npm` version badge.
+
+### Changed
+
+- **`package.json`**: version bumped to `0.1.2`. No code changes; this
+  release is the first publish to the npm registry.
+
 ## [0.1.1] — 2026-04-24
 
 ### Fixed
@@ -80,5 +95,6 @@ Initial public release.
 - Docs: `README.md` with Why / Install / CLI / MCP / Rules / Pricing /
   Development / Community sections, plus `docs/promo/` drafts.
 
+[0.1.2]: https://github.com/sean-sunagaku/promptlint-mcp/releases/tag/v0.1.2
 [0.1.1]: https://github.com/sean-sunagaku/promptlint-mcp/releases/tag/v0.1.1
 [0.1.0]: https://github.com/sean-sunagaku/promptlint-mcp/releases/tag/v0.1.0

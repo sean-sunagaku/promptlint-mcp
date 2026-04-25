@@ -3,7 +3,8 @@
 ![MIT License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Node 18+](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)
 ![MCP compatible](https://img.shields.io/badge/MCP-compatible-blue.svg)
-![v0.1.1](https://img.shields.io/badge/release-v0.1.1-blue.svg)
+![v0.1.2](https://img.shields.io/badge/release-v0.1.2-blue.svg)
+![npm](https://img.shields.io/npm/v/promptlint-mcp.svg?label=npm)
 
 Lint AI prompts like code. Save tokens. Catch contradictions.
 
@@ -80,12 +81,39 @@ file of JavaScript will look clean even if it isn't.
 
 ## Install
 
-Not on npm yet. Clone and run locally:
+Install both the CLI and the MCP server in one go:
+
+```sh
+npm install -g promptlint-mcp
+```
+
+Two binaries are placed on your `$PATH`:
+
+| Bin | What it is |
+| --- | ---------- |
+| `promptlint`     | the CLI (lint a file or stdin) |
+| `promptlint-mcp` | the MCP server (stdio transport) |
+
+### Run without installing
+
+```sh
+# CLI: lint a file
+npx -p promptlint-mcp promptlint <file>
+
+# CLI: lint stdin
+echo "be concise and thorough" | npx -p promptlint-mcp promptlint -
+
+# MCP server (auto-launched by Claude Code via mcp config; see below)
+npx -y promptlint-mcp
+```
+
+### From source (hacking on it)
 
 ```sh
 git clone https://github.com/sean-sunagaku/promptlint-mcp.git
 cd promptlint-mcp
 npm install
+node src/cli.mjs examples/bad-prompt.md
 ```
 
 Requires Node **>= 18**. Zero runtime deps other than the MCP SDK.
@@ -207,10 +235,10 @@ node src/cli.mjs --help       # usage
 
 ## MCP server usage
 
-Register with Claude Code in one command:
+Register with Claude Code in one command (no clone, no global install needed):
 
 ```sh
-claude mcp add promptlint node /absolute/path/to/promptlint-mcp/src/mcp.mjs
+claude mcp add promptlint -- npx -y promptlint-mcp
 ```
 
 Or add this to `~/.claude.json` (user scope) or project `.mcp.json`
@@ -220,8 +248,21 @@ Or add this to `~/.claude.json` (user scope) or project `.mcp.json`
 {
   "mcpServers": {
     "promptlint": {
-      "command": "node",
-      "args": ["/absolute/path/to/promptlint-mcp/src/mcp.mjs"]
+      "command": "npx",
+      "args": ["-y", "promptlint-mcp"]
+    }
+  }
+}
+```
+
+If you've globally installed the package, the absolute-path form also works
+and skips `npx`'s first-run download:
+
+```json
+{
+  "mcpServers": {
+    "promptlint": {
+      "command": "promptlint-mcp"
     }
   }
 }
