@@ -1,10 +1,59 @@
 # promptlint-mcp
 
+![MIT License](https://img.shields.io/badge/license-MIT-green.svg)
+![Node 18+](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)
+![MCP compatible](https://img.shields.io/badge/MCP-compatible-blue.svg)
+![v0.1.1](https://img.shields.io/badge/release-v0.1.1-blue.svg)
+
 Lint AI prompts like code. Save tokens. Catch contradictions.
 
 A static analyzer for AI prompts — system prompts, agent instructions, tool
 descriptions — that runs as a **CLI** and as an **MCP server** so Claude Code
 (or any MCP-aware agent) can lint prompts before sending them.
+
+---
+
+## Quick demo
+
+Run promptlint on a typical (silently broken) system prompt:
+
+<!-- TODO: record an asciinema cast of the three CLI modes (default / --json
+     / --trim) and link here as `[![asciicast](...)](...)` once uploaded.
+     The text block below is the verbatim `NO_COLOR=1` output — it ships the
+     idea without needing the cast to land first. -->
+
+```text
+$ node src/cli.mjs examples/bad-prompt.md
+
+promptlint examples/bad-prompt.md
+  score  14/100
+  tokens 367 → 307 (-60, 16% saved)
+  issues 14
+
+  info   [ambiguous-pronoun] Pronoun "that" has no clear referent (line 1)
+         → Replace with a concrete noun, e.g. "this" → "the config file".
+  ...
+  error  [contradiction] Contradicting directives (length): "concise" vs "detailed"
+         → Pick one, or scope each with a clear condition (e.g. by task type).
+  error  [contradiction] Contradicting directives (commenting): "do not add comments" vs "explain each step"
+         → Pick one, or scope each with a clear condition (e.g. by task type).
+  info   [trailing-fluff] "please" fluff (match 1 of 1)
+         → Delete. AIs do not need politeness tokens.
+         · Please
+  ...
+```
+
+Two `error`-level contradictions caught, score clamped to 14/100, 60 tokens (16%) reclaimable via `--trim`.
+
+And here's `--trim` in action on a small input:
+
+```text
+$ echo "You are a helpful assistant. Please always be concise. Thank you for your help! When the user asks a question, handle it carefully." | node src/cli.mjs - --trim
+
+You are a helpful assistant. Always be concise. When the user asks a question, handle it carefully.
+```
+
+See [`docs/promo/`](./docs/promo/) for posting drafts and the (TODO) asciinema cast.
 
 ---
 

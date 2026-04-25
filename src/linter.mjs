@@ -70,28 +70,66 @@ function maskCodeBlocks(text) {
 
 // ---------- Rule: redundancy ----------
 // Near-duplicate sentences (Jaccard > 0.6) indicate the same instruction twice.
+// Perf: tokenize each sentence once up-front (prior versions re-tokenized in
+// the inner loop → O(n²) × tokenize cost). For very long inputs (>200 sents)
+// the pair-wise scan itself becomes the bottleneck, so we fall back to a
+// windowed adjacent scan and emit a single info issue so the behavior is
+// visible in the output.
+const REDUNDANCY_PAIRWISE_LIMIT = 200;
+const REDUNDANCY_WINDOW = 10;
 function ruleRedundancy(text) {
   const issues = [];
   const sents = splitSentences(text);
+  const n = sents.length;
+  // Hoist tokenization out of the O(n²) loop.
+  const tokens = new Array(n);
+  for (let i = 0; i < n; i++) tokens[i] = tokenizeWords(sents[i]);
+
   const seen = new Set();
-  for (let i = 0; i < sents.length; i++) {
-    for (let j = i + 1; j < sents.length; j++) {
-      const a = tokenizeWords(sents[i]);
-      const b = tokenizeWords(sents[j]);
-      if (a.length < 4 || b.length < 4) continue;
-      const sim = jaccard(a, b);
-      if (sim > 0.6) {
-        const key = `${Math.min(i, j)}:${Math.max(i, j)}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        issues.push({
-          rule: "redundancy",
-          severity: "warn",
-          message: `Near-duplicate sentences (similarity ${sim.toFixed(2)})`,
-          samples: [sents[i], sents[j]],
-          suggestion: "Keep one, delete the other, or merge them.",
-        });
+  const pushPair = (i, j, sim) => {
+    const key = `${Math.min(i, j)}:${Math.max(i, j)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    issues.push({
+      rule: "redundancy",
+      severity: "warn",
+      message: `Near-duplicate sentences (similarity ${sim.toFixed(2)})`,
+      samples: [sents[i], sents[j]],
+      suggestion: "Keep one, delete the other, or merge them.",
+    });
+  };
+
+  if (n > REDUNDANCY_PAIRWISE_LIMIT) {
+    // Long input: windowed scan only (i, i+1..i+window).
+    for (let i = 0; i < n; i++) {
+      const a = tokens[i];
+      if (a.length < 4) continue;
+      const jEnd = Math.min(n, i + 1 + REDUNDANCY_WINDOW);
+      for (let j = i + 1; j < jEnd; j++) {
+        const b = tokens[j];
+        if (b.length < 4) continue;
+        const sim = jaccard(a, b);
+        if (sim > 0.6) pushPair(i, j, sim);
       }
+    }
+    issues.push({
+      rule: "redundancy",
+      severity: "info",
+      message: `redundancy: skipped pair-wise scan on N>${REDUNDANCY_PAIRWISE_LIMIT} sentences for perf`,
+      suggestion:
+        "Input is very long; only adjacent sentences (window=10) were compared.",
+    });
+    return issues;
+  }
+
+  for (let i = 0; i < n; i++) {
+    const a = tokens[i];
+    if (a.length < 4) continue;
+    for (let j = i + 1; j < n; j++) {
+      const b = tokens[j];
+      if (b.length < 4) continue;
+      const sim = jaccard(a, b);
+      if (sim > 0.6) pushPair(i, j, sim);
     }
   }
   return issues;
@@ -207,8 +245,25 @@ const CONTRADICTION_PAIRS = [
     label: "commenting",
   },
   {
-    a: ["do not ask", "don't ask", "never ask"],
-    b: ["ask the user", "clarify with the user", "confirm with the user"],
+    a: [
+      "do not ask",
+      "don't ask",
+      "never ask",
+      "never ask any",
+      "do not ask any",
+      "don't ask anything",
+      "never ask clarifying",
+    ],
+    b: [
+      "ask the user",
+      "clarify with the user",
+      "confirm with the user",
+      "ask for clarification",
+      "ask clarifying",
+      "clarify with",
+      "confirm with",
+      "request clarification",
+    ],
     label: "asking",
   },
 ];
@@ -514,12 +569,21 @@ function trimProse(prose) {
     }
 
     // Re-capitalize first alphabetic letter of what's left.
+    //
+    // XML/HTML tag guard: if the sentence (after leading whitespace) starts
+    // with '<', skip the re-capitalize step entirely. This preserves tag names
+    // like <rule>, <system>, <thinking>, <example> — common in Anthropic-style
+    // structured prompts — which would otherwise be mangled to <Rule>, <System>
+    // etc. by the generic "uppercase the first letter post-trim" step.
     let rebuilt = s.replace(/[ \t]+/g, " ");
     rebuilt = rebuilt.replace(/^[ \t]+/, "");
-    rebuilt = rebuilt.replace(
-      /^([^\p{L}]*)(\p{Ll})/u,
-      (_, lead, ch) => lead + ch.toUpperCase()
-    );
+    const startsWithTag = /^\s*</.test(rebuilt);
+    if (!startsWithTag) {
+      rebuilt = rebuilt.replace(
+        /^([^\p{L}]*)(\p{Ll})/u,
+        (_, lead, ch) => lead + ch.toUpperCase()
+      );
+    }
     // Preserve original trailing newlines.
     const trailingNewlines = sent.match(/\n+$/)?.[0] ?? "";
     if (trailingNewlines && !rebuilt.endsWith(trailingNewlines)) {
@@ -553,6 +617,36 @@ function scoreOf(issues) {
   return Math.max(0, score);
 }
 
+// Heuristic: is the input a JSON / structured payload where whitespace /
+// indentation carries meaning and running the prose trimmer would flatten
+// it? Triggers on:
+//   - first non-whitespace char is '{' or '['
+//   - OR more than 30% of non-empty lines start with '{', '[', ':', '"',
+//     '}', ']', or look like a "key": value / key: value pair.
+// When true, trim() is skipped and the result is flagged `jsonLikeInput:true`.
+function looksJsonLike(text) {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return false;
+  if (trimmed[0] === "{" || trimmed[0] === "[") return true;
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return false;
+  let structural = 0;
+  // Key-value heuristic: '"key":' or 'key:' at the start (YAML/JSON-ish).
+  const kvRe = /^\s*("?[\w-]+"?\s*:)/;
+  for (const line of lines) {
+    const s = line.trimStart();
+    const c = s[0];
+    if (c === "{" || c === "[" || c === "}" || c === "]" || c === '"' || c === ":") {
+      structural++;
+      continue;
+    }
+    if (kvRe.test(line)) {
+      structural++;
+    }
+  }
+  return structural / lines.length > 0.3;
+}
+
 // ---------- Public API ----------
 export function lint(text) {
   const input = typeof text === "string" ? text : "";
@@ -567,7 +661,11 @@ export function lint(text) {
     ...ruleContradiction(masked),
     ...ruleTrailingFluff(masked),
   ];
-  let trimmed = trim(input);
+  // JSON/YAML safety: if the input looks structured (indentation carries
+  // meaning), skip the prose trim entirely — collapsing whitespace would
+  // break JSON.parse downstream and garble YAML.
+  const jsonLikeInput = looksJsonLike(input);
+  let trimmed = jsonLikeInput ? input : trim(input);
   // Safety fallback: if the input had content but the trimmer produced an
   // empty string, return the original input instead. A "safe drop-in" trimmer
   // must never turn a non-empty prompt into a blank — the downstream LLM
@@ -593,6 +691,9 @@ export function lint(text) {
   };
   if (trimmerFallback) {
     result.trimmerFallback = true;
+  }
+  if (jsonLikeInput) {
+    result.jsonLikeInput = true;
   }
   if (input.trim().length === 0) {
     result.note = "empty input";
