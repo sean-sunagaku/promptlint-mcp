@@ -219,8 +219,9 @@ traffic-light: any error = red zone, regardless of count.
 - Cross-project token-savings dashboard ("your team saved 1.2M tokens this
   month").
 
-Pro is **not shipped yet**. No signup form today — star the repo and watch
-for the "early access" GitHub issue (TODO: create issue and link here).
+Pro is **not shipped yet**. No signup form today —
+[👍 the early-access issue (#1)](https://github.com/sean-sunagaku/promptlint-mcp/issues/1)
+to register interest. We DM invites in 👍 order.
 
 ---
 
@@ -269,6 +270,24 @@ Existing labels: `length`, `tone`, `frequency`, `prohibition`, `commenting`,
 `asking`.
 
 ---
+
+## Community
+
+- 💬 [Discussions](https://github.com/sean-sunagaku/promptlint-mcp/discussions) — questions, ideas, prompt war stories
+- 🐛 [Issues](https://github.com/sean-sunagaku/promptlint-mcp/issues) — bugs, feature requests
+  - [#1 Pro early access](https://github.com/sean-sunagaku/promptlint-mcp/issues/1) (pinned)
+  - [#2 Roadmap](https://github.com/sean-sunagaku/promptlint-mcp/issues/2)
+  - [#3 Known issues / day-2 backlog](https://github.com/sean-sunagaku/promptlint-mcp/issues/3)
+- ⭐ Star the repo if it saves you tokens — discovery helps other AI users find it.
+
+## How this was built
+
+This v0.1.0 was produced by an AI auto-improvement loop:
+**Customer AI** uses the tool and writes feedback → **Developer AI** reads the
+feedback and patches the code → repeat. Each round's commit (`round-001`,
+`round-002`, `round-003`) is the developer-AI's response to that round's
+customer-AI feedback. The loop framework lives at
+[ai-auto-improve-app](https://github.com/sean-sunagaku/ai-auto-improve-app).
 
 ## License
 
